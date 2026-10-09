@@ -1,125 +1,125 @@
-# Descripción general — Simple Stock Flow
+# General Description — Simple Stock Flow
 
-> **Fuente única:** [`spec/data-model.md`](../spec/data-model.md). Es el **único** insumo del reto: los demás documentos del proyecto original (`constitution.md`, `spec.md`, `plan.md`, `adr/`, `tasks.md`, `api-contract.md`) no se entregan (README del reto). Lo que no sale del modelo se marca **[SUPUESTO S-nn]** ([`../supuestos.md`](../supuestos.md)).
-> **Idioma:** estos documentos están en español, igual que el modelo y el README del reto; los identificadores de código y de columna se conservan en inglés, como manda el glosario [SUPUESTO S-01].
-
----
-
-## 1. ¿Qué es Simple Stock Flow?
-
-Un sistema interno para **llevar el catálogo, el stock y las ventas** de un comercio pequeño. Lo opera personal del propio negocio —**no sus clientes**— y se apoya en una base PostgreSQL.
-
-Lo que el modelo deja claro que hace:
-
-- Mantiene un **catálogo de productos** con nombre, precio, stock, categoría e imagen opcional (§1, DP-03).
-- **Registra ventas** de varias líneas que descuentan stock y quedan **inmutables** (§1, §2.3).
-- Produce un **reporte de ventas por producto** sobre un rango de fechas (§1, §6.1 Q9).
-- Distingue **dos roles** de usuario interno: `admin` y `seller` (§2.5).
-
-> [SUPUESTO S-04] Que sea para un comercio tipo ferretería sale solo de las cinco categorías sembradas (*General, Herramientas, Electricidad, Fontanería, Pinturas*, §9.1). El modelo **no nombra** al negocio.
+> **Single source:** [`spec/data-model.md`](../spec/data-model.md). It is the **only** input of the challenge: the other documents of the original project (`constitution.md`, `spec.md`, `plan.md`, `adr/`, `tasks.md`, `api-contract.md`) are not delivered (challenge README). Whatever does not come from the model is marked **[ASSUMPTION S-nn]** ([`../assumptions.md`](../assumptions.md)).
+> **Language:** these documents are in English; code and column identifiers are kept in English, as the glossary requires [ASSUMPTION S-01]. The model and the challenge README are in Spanish, so quotes («…») are translations.
 
 ---
 
-## 2. Problema que resuelve
+## 1. What is Simple Stock Flow?
 
-### Antes del sistema
+An internal system to **keep the catalog, stock and sales** of a small shop. It is operated by the business's own staff —**not its customers**— and relies on a PostgreSQL database.
 
-Cuando el inventario y las ventas dependen de que cada persona respete las reglas a mano:
+What the model makes clear that it does:
 
-- Dos ventas simultáneas pueden dejar el stock **negativo**.
-- Renombrar, reprecificar o recategorizar un producto **reescribe el pasado** de los reportes.
-- Una venta puede **editarse o borrarse** después de hecha.
-- No queda claro **quién** registró cada operación.
+- Maintains a **product catalog** with name, price, stock, category and optional image (§1, DP-03).
+- **Registers sales** of several lines that withdraw stock and become **immutable** (§1, §2.3).
+- Produces a **sales report by product** over a date range (§1, §6.1 Q9).
+- Distinguishes **two roles** of internal user: `admin` and `seller` (§2.5).
 
-### Con el sistema
-
-- El stock **nunca baja de cero** y las ventas simultáneas no se pisan (§2.2, D-04).
-- Cada línea de venta **congela** precio, nombre y categoría del momento (§2.4).
-- Las ventas son **hechos consumados**: no se editan ni se borran (§2.3).
-- Cada venta queda atribuida a un usuario (§2.3).
-
-El detalle del problema está en [`../03-product/problem-framing.md`](../03-product/problem-framing.md).
+> [ASSUMPTION S-04] That it is for a hardware store comes only from the five seeded categories (*General, Herramientas, Electricidad, Fontanería, Pinturas*, §9.1). The model **does not name** the business. The category names are seed data and are kept in their original Spanish.
 
 ---
 
-## 3. Usuarios
+## 2. Problem it solves
 
-| Rol | Descripción | Qué hace en el sistema |
+### Before the system
+
+When inventory and sales depend on each person following the rules by hand:
+
+- Two simultaneous sales can leave stock **negative**.
+- Renaming, repricing or recategorizing a product **rewrites the past** of the reports.
+- A sale can be **edited or deleted** after being made.
+- It is unclear **who** registered each operation.
+
+### With the system
+
+- Stock **never drops below zero** and simultaneous sales do not overwrite each other (§2.2, D-04).
+- Each sale line **freezes** the price, name and category of the moment (§2.4).
+- Sales are **accomplished facts**: they are neither edited nor deleted (§2.3).
+- Each sale is attributed to a user (§2.3).
+
+The problem is detailed in [`../03-product/problem-framing.md`](../03-product/problem-framing.md).
+
+---
+
+## 3. Users
+
+| Role | Description | What it does in the system |
 |---|---|---|
-| **Vendedor** (`seller`) | Operador interno que atiende ventas | Se autentica, consulta el catálogo y **registra ventas** (§1, §2.5) |
-| **Administrador** (`admin`) | Operador interno con más privilegio | Da de alta vendedores (DP-04); mantiene el catálogo [SUPUESTO S-03] |
-| **Responsable del despliegue** | Quien configura el entorno | Entrega las credenciales con las que el arranque crea al primer administrador (§9.2) |
+| **Seller** (`seller`) | Internal operator who serves sales | Authenticates, queries the catalog and **registers sales** (§1, §2.5) |
+| **Administrator** (`admin`) | Internal operator with more privilege | Creates sellers (DP-04); maintains the catalog [ASSUMPTION S-03] |
+| **Deployment owner** | Whoever configures the environment | Provides the credentials with which startup creates the first administrator (§9.2) |
 
-**No hay clientes en el sistema.** No existe la entidad ni se guarda ningún dato personal de un comprador (§1, §7). El `username` del operador sí es un dato personal (§7).
+**There are no customers in the system.** The entity does not exist and no buyer personal data is stored (§1, §7). The operator's `username` is personal data (§7).
 
 ---
 
-## 4. Flujo principal
+## 4. Main flow
 
 ```text
-Administrador                              Vendedor
+Administrator                              Seller
      |                                        |
      v                                        v
-Mantiene el catálogo                    Se autentica
-(productos, precio, stock,                    |
- categoría de las cinco, imagen)              v
-     |                                  Busca productos
+Maintains the catalog                    Authenticates
+(products, price, stock,                      |
+ one of five categories, image)               v
+     |                                  Searches products
      |                                        |
      |                                        v
-     |                              Registra una venta (≥ 1 línea)
+     |                              Registers a sale (≥ 1 line)
      |                                        |
      |                     +------------------+------------------+
      |                     |                                     |
      |                     v                                     v
-     |            Stock baja por línea                Línea congela nombre,
-     |            (una sola operación)               precio y categoría
+     |            Stock drops per line                Line freezes name,
+     |            (a single operation)                price and category
      |                     |
      |                     v
-     +------------> Reporte de ventas por producto
-                    (rango de fechas, calculado en el motor)
+     +------------> Sales report by product
+                    (date range, computed in the engine)
 ```
 
-Las partes de este flujo con su respaldo: catálogo §2.2; búsqueda §6.1 Q1; venta §2.3–§2.4; reporte §6.1 Q9 y §11.1.
+Backing for each part of this flow: catalog §2.2; search §6.1 Q1; sale §2.3–§2.4; report §6.1 Q9 and §11.1.
 
 ---
 
-## 5. El sistema en cifras (según el modelo)
+## 5. The system in numbers (according to the model)
 
-| Dato | Valor | Cita |
+| Datum | Value | Citation |
 |---|---|---|
-| Entidades / tablas | 5: `category`, `product`, `sale`, `sale_item`, `user` | §2 |
-| Raíces de agregado | 3: `Product`, `Sale`, `User` | §2 |
-| Esquema | `sales`, en PostgreSQL 16 | «Verificado contra», §3 |
+| Entities / tables | 5: `category`, `product`, `sale`, `sale_item`, `user` | §2 |
+| Aggregate roots | 3: `Product`, `Sale`, `User` | §2 |
+| Schema | `sales`, in PostgreSQL 16 | «Verified against», §3 |
 | Roles | 2: `admin`, `seller` | §2.5 |
-| Categorías | 5, sembradas, sin mantenimiento | §9.1, D-10 |
-| Migraciones aplicadas | 4 | §3.2 |
-| Volumen al 2026-09-19 | 5 categorías · 1 usuario · 0 productos · 0 ventas · 0 líneas | §10.4 |
+| Categories | 5, seeded, no maintenance | §9.1, D-10 |
+| Applied migrations | 4 | §3.2 |
+| Volume at 2026-09-19 | 5 categories · 1 user · 0 products · 0 sales · 0 lines | §10.4 |
 
-> **Nota.** El modelo afirma «22 columnas» en §3 y §12, pero la medición de §10.1 (2026-09-19) devuelve **21**. La diferencia probable es `product.deleted_at`, creada después de esa medición (T-09, §13 D-1) — es una lectura, no un dato del modelo. Ver OBS-01 en [`../05-architecture/verification.md`](../05-architecture/verification.md).
-
----
-
-## 6. Estado del proyecto
-
-El modelo describe un sistema **ya construido y en revisión**, con tareas pendientes explícitas:
-
-- **Pendiente:** autoría de la venta con clave foránea a `user` (T-12), tres índices (T-13), guarda explícita de moneda (T-05) y bajar al motor cinco invariantes (T-20, parcial) (§2.3, §4, §6.2).
-- **Hueco abierto:** política de limpieza de binarios de imagen huérfanos (H-2) (§11).
-- **Decisión pendiente del propietario:** reescribir `spec.md` CA-06.1 para que no contradiga H-1 (§11.1).
-
-Se detalla en [`../03-product/vision.md`](../03-product/vision.md) y [`../05-architecture/verification.md`](../05-architecture/verification.md).
+> **Note.** The model states «22 columns» in §3 and §12, but the measurement of §10.1 (2026-09-19) returns **21**. The probable difference is `product.deleted_at`, created after that measurement (T-09, §13 D-1) — this is a reading, not a fact of the model. See OBS-01 in [`../05-architecture/verification.md`](../05-architecture/verification.md).
 
 ---
 
-## 7. Cómo leer esta documentación
+## 6. Project status
 
-| Orden | Carpeta | Qué responde |
+The model describes a system **already built and under review**, with explicit pending tasks:
+
+- **Pending:** sale authorship with a foreign key to `user` (T-12), three indexes (T-13), explicit currency guard (T-05) and pushing five invariants down to the engine (T-20, partial) (§2.3, §4, §6.2).
+- **Open gap:** cleanup policy for orphaned image binaries (H-2) (§11).
+- **Owner decision pending:** rewrite `spec.md` CA-06.1 so it does not contradict H-1 (§11.1).
+
+Detailed in [`../03-product/vision.md`](../03-product/vision.md) and [`../05-architecture/verification.md`](../05-architecture/verification.md).
+
+---
+
+## 7. How to read this documentation
+
+| Order | Folder | What it answers |
 |---|---|---|
-| 1 | [`01-context/`](.) | Qué es y qué no es el sistema |
-| 2 | [`02-domain/`](../02-domain/) | Entidades, reglas, eventos y glosario |
-| 3 | [`03-product/`](../03-product/) | Problema y visión |
-| 4 | [`04-requirements/`](../04-requirements/) | Historias de usuario y requisitos no funcionales |
-| 5 | [`05-architecture/`](../05-architecture/) | Estilo, piezas y dónde vive cada regla; verificación de cierre |
-| — | [`../supuestos.md`](../supuestos.md) | Todo lo que **no** sale del modelo |
+| 1 | [`01-context/`](.) | What the system is and is not |
+| 2 | [`02-domain/`](../02-domain/) | Entities, rules, events and glossary |
+| 3 | [`03-product/`](../03-product/) | Problem and vision |
+| 4 | [`04-requirements/`](../04-requirements/) | User stories and non-functional requirements |
+| 5 | [`05-architecture/`](../05-architecture/) | Style, components and where each rule lives; closing verification |
+| — | [`../assumptions.md`](../assumptions.md) | Everything that does **not** come from the model |
 
-> Estos documentos se **reconstruyeron hacia atrás**, de la arquitectura al contexto, a partir del modelo. Por eso el orden de lectura es el inverso al de escritura.
+> These documents were **reconstructed backwards**, from architecture to context, starting from the model. That is why the reading order is the reverse of the writing order.
